@@ -3,8 +3,9 @@
 import sqlalchemy
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine, func, and_
 import datetime as dt
+
 
 from flask import Flask, jsonify
 
@@ -29,6 +30,7 @@ station_reflected = Base.classes.station
 # Create our session (link) from Python to the DB
 # session = Session(engine) - this goes down on each route
 
+
 #################################################
 # Flask Setup
 #################################################
@@ -44,9 +46,25 @@ def home():
     print('Home')
     return (
         f"Available Routes:<br/>"
+        f"<br/>"
+
+        f"Static routes:<br/>"
         f"/api/v1.0/precipitation<br/>"
         f"/api/v1.0/stations<br/>"
-        f"/api/v1.0/tobs"
+        f"/api/v1.0/tobs<br/>"
+
+        f"<br/>"
+        f"Dynamic routes:<br/>"
+        f"/api/v1.0/<br/>"
+        f"There are two ways in which information can be retrieved, mentioned below: <br/>"
+
+        f"<br/>"
+        f"Option 1: Retrieving information after a start date: write the start date after '/' in the format of yyyy - mm - dd. <br/>"
+        f"For example: /api/v1.0/2016-03-15. This will retrieve data after 2016-03-15. <br/>"
+        
+        f"<br/>"
+        f"Option 2: Retrieving information after a start date and before an end date: write the start date after '/' in the format of yyyy - mm - dd, and an end date after a second '/'.<br/>"
+        f"For example: /api/v1.0/2016-03-15/2017-01-10. This will retrieve data after 2016-03-15 and before 2017-01-10. <br/>"  
     )
 @app.route("/api/v1.0/precipitation")
 def prec():
@@ -128,7 +146,6 @@ def tobs():
     # Calculate Previous Year Date
     prev_year = dt.date(2017, 8, 23) - dt.timedelta(days=365)
    
-   
     MostActive_last_12_months_temp = (
     session
     .query(
@@ -153,6 +170,66 @@ def tobs():
         all_temperatures.append(temperature_dict)
 
     return jsonify(all_temperatures)
+
+@app.route("/api/v1.0/<start_date>")
+def DynamicStart(start_date):
+
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    # get min, max, and avg data
+    StartDateMinMaxAvg = (
+    session
+    .query(
+        func.min(measurement_reflected.tobs),
+        func.max(measurement_reflected.tobs),
+        func.avg(measurement_reflected.tobs)
+    )
+    .filter(measurement_reflected.date > start_date)
+    .all()
+    )
+    
+    temperatures = []
+    for minTemp, maxTemp, AvgTemp in StartDateMinMaxAvg:
+        temperature_dict2 = {}
+        temperature_dict2["minTemp"] = minTemp
+        temperature_dict2["maxTemp"] = maxTemp
+        temperature_dict2["avgTemp"] = AvgTemp
+        temperatures.append(temperature_dict2)
+
+    return jsonify(temperatures)
+
+@app.route("/api/v1.0/<start_date>/<end_date>")
+def DynamicStart_End(start_date, end_date):
+
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    # get min, max, and avg data
+    StartEndDateMinMaxAvg = (
+    session
+    .query(
+        func.min(measurement_reflected.tobs),
+        func.max(measurement_reflected.tobs),
+        func.avg(measurement_reflected.tobs)
+    )
+    .filter(
+    and_(
+        measurement_reflected.date > start_date,
+        measurement_reflected.date < end_date
+    )
+    )
+    )
+
+    temperatures2 = []
+    for minTemp, maxTemp, AvgTemp in StartEndDateMinMaxAvg:
+        temperature_dict3 = {}
+        temperature_dict3["minTemp"] = minTemp
+        temperature_dict3["maxTemp"] = maxTemp
+        temperature_dict3["avgTemp"] = AvgTemp
+        temperatures2.append(temperature_dict3)
+
+    return jsonify(temperatures2)
 
 
 if __name__ == '__main__':
